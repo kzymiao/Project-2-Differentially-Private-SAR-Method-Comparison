@@ -38,12 +38,30 @@ For a fixed `N` and replicate, `epsilon=1` and `epsilon=2` use the same generate
 
 ## Setup
 
+Create a virtual environment, install dependencies, run tests, and reproduce the complete simulation pipeline with:
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+make reproduce
 ```
+
+This command creates a `.venv` virtual environment, installs the dependencies listed in `requirements.txt`, runs the test suite, and executes the complete simulation and analysis pipeline.
+
+To run individual steps after setup:
+
+```bash
+make test
+make all
+```
+
+## Reproducibility
+
+The simulation uses a fixed default random seed (`1234`) and 50 Monte Carlo replicates per scenario. The random seed and number of replicates can be changed through the Makefile variables.
+
+```bash
+make PYTHON=.venv/bin/python all REPS=50 SEED=1234
+```
+
+
 
 ## Testing and validation
 

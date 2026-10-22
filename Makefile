@@ -19,3 +19,13 @@ test:
 
 clean:
 	rm -rf results/raw/*.csv results/summary.csv results/figures/*.png results/figures/*.pdf
+
+
+.PHONY: reproduce
+
+reproduce:
+	python3 -m venv .venv
+	.venv/bin/python -m pip install --upgrade pip
+	.venv/bin/python -m pip install -r requirements.txt
+	$(MAKE) PYTHON=.venv/bin/python test
+	$(MAKE) PYTHON=.venv/bin/python all
