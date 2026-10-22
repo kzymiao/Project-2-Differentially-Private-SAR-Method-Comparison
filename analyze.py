@@ -43,7 +43,7 @@ def make_bias_figure(summary):
         figsize=(12.5, 3.1 * len(epsilons)),
         sharex=True,
         squeeze=False,
-        constrained_layout=True,
+        constrained_layout=False,
     )
 
     for row, epsilon in enumerate(epsilons):
@@ -93,11 +93,11 @@ def make_bias_figure(summary):
         handles,
         labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.02),
+        bbox_to_anchor=(0.5, 0.01),
         ncol=max(1, len(labels)),
         frameon=False,
     )
-
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     return fig
 
 
@@ -112,7 +112,7 @@ def make_rmse_figure(summary):
         figsize=(12.5, 3.1 * len(epsilons)),
         sharex=True,
         squeeze=False,
-        constrained_layout=True,
+        constrained_layout=False,
     )
 
     for row, epsilon in enumerate(epsilons):
@@ -162,11 +162,11 @@ def make_rmse_figure(summary):
         handles,
         labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.02),
+        bbox_to_anchor=(0.5, 0.01),
         ncol=max(1, len(labels)),
         frameon=False,
     )
-
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     return fig
 
 
@@ -181,7 +181,7 @@ def make_epsilon_rmse_figure(summary):
         figsize=(12.5, 3.1 * len(methods)),
         sharex=True,
         squeeze=False,
-        constrained_layout=True,
+        constrained_layout=False,
     )
 
     for row, method in enumerate(methods):
@@ -227,11 +227,11 @@ def make_epsilon_rmse_figure(summary):
         handles,
         labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.02),
+        bbox_to_anchor=(0.5, 0.01),
         ncol=max(1, len(labels)),
         frameon=False,
     )
-
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     return fig
 
 
@@ -250,7 +250,7 @@ def make_error_diagnostic(raw):
         1,
         3,
         figsize=(11.5, 3.6),
-        constrained_layout=True,
+        constrained_layout=False,
     )
 
     for ax, parameter in zip(axes, PARAMETERS):
@@ -272,6 +272,7 @@ def make_error_diagnostic(raw):
         y=1.04,
     )
 
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     return fig
 
 

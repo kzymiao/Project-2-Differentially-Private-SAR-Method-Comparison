@@ -15,9 +15,7 @@ Wang, Z. and Song, Y. (2024). Privacy-preserving parametric inference for spatia
 
 This project compares the proposed differentially private QMLE for spatial autoregressive models with a Gaussian functional-mechanism baseline. The primary outcomes are parameter-wise **absolute bias** and RMSE as sample size and privacy budget change.
 
-## Key Findings
 
-Our simulation shows that the proposed DP-QMLE consistently achieves lower absolute bias and RMSE compared to the Wang–Song baseline, while exhibiting greater numerical stability across varying sample sizes and privacy budgets.
 
 ## Final simulation design
 
@@ -110,3 +108,6 @@ On a MacBook Pro, the full simulation with 50 Monte Carlo replicates
 per condition takes approximately 14 minutes (13:48.25). Runtime will vary by
 machine.
 
+## Key Findings
+
+Our simulation shows that the proposed DP-QMLE consistently achieves lower absolute bias and RMSE compared to the Wang–Song baseline, while exhibiting greater numerical stability across varying sample sizes and privacy budgets.
