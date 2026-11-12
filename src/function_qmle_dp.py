@@ -17,7 +17,14 @@ def project_pd_cone(matrix, eps_H=1e-7):
         # Reconstruct and return the positive definite matrix
         return evecs @ np.diag(evals) @ evecs.T
 
-def f_lambda_ture_sig(hbeta, hrho, Y, X, W):  
+def f_lambda_ture_sig(
+    hbeta,
+    hrho,
+    Y,
+    X,
+    W_dense,
+    WY,
+): 
     """
     Calculate the first-order derivatives (score/gradient) and estimate the variance sigma^2 
     for the standard SAR QMLE method.
@@ -27,33 +34,62 @@ def f_lambda_ture_sig(hbeta, hrho, Y, X, W):
     :hrho: The estimate of rho in the current iterative step.
     :Y: The observed response vector.
     :X: The covariate matrix.
-    :W: The spatial weight matrix.
-    
+    :W_dense: dense form of the spatial weight matrix W; W_dense and WY are precomputed outside this function because they do not change across gradient iterations.
+    :WY: W @ Y
+
     Returns:
     :f: The combined gradient vector for beta and rho.
     :hsig: The estimated error variance (sigma^2).
     """
+
     N = len(Y)
-    p = len(X[1])
-    
-    # Calculate the spatial filter matrix: S = I - rho * W
-    hS = np.eye(N) - hrho * W.toarray()
+
+    # S(rho) = I - rho W.
+    # The inverse is still required for the trace term.
+    hS = np.eye(N) - hrho * W_dense
     hS1 = np.linalg.inv(hS)
-    
-    # Calculate the residuals: V = S * Y - X * beta
-    V = hS.dot(Y) - (X.dot(hbeta)).reshape(N, 1)
-    
-    # Estimate the error variance sigma^2: (V^T * V) / N
+
+    # Instead of computing
+    #
+    #     (I - rho W) @ Y
+    #
+    # at every iteration, use
+    #
+    #     Y - rho * (W @ Y),
+    #
+    # where WY is precomputed once.
+    V = (
+        Y
+        - hrho * WY
+        - X.dot(hbeta).reshape(N, 1)
+    )
+
+    # Current variance estimate.
     hsig = (V.T.dot(V) / N)[0, 0]
-    s1 = 1.0 / hsig         
-    
-    # Calculate the first-order derivative (gradient) of the log-likelihood w.r.t rho
-    f_r = -((W.toarray().dot(hS1)).trace()) + 1 / hsig * V.T.dot(W.toarray()).dot(Y)
-    
-    # Calculate the first-order derivative (gradient) of the log-likelihood w.r.t beta
-    f_b = 1 / hsig * X.T.dot(V)
-    
+
+    # trace(W @ hS1) can be computed without forming the full
+    # matrix product:
+    #
+    # trace(W @ hS1)
+    # = sum_ij W_ij * hS1_ji.
+    trace_term = np.sum(
+        W_dense * hS1.T
+    )
+
+    # Score with respect to rho.
+    f_r = (
+        -trace_term
+        + (1.0 / hsig) * V.T.dot(WY)
+    )
+
+    # Score with respect to beta.
+    f_b = (
+        (1.0 / hsig)
+        * X.T.dot(V)
+    )
+
     f = np.vstack((f_b, f_r))
+
     return f, hsig
 
 
@@ -67,13 +103,27 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
     
     # Input: Initial value \theta^0
     hrbeta=(0.01*np.ones(p+1)).reshape((p+1,1))
-
+    # Convert the spatial weight matrix once.
+    
+    W_dense = (
+        W.toarray()
+        if sps.issparse(W)
+        else np.asarray(W)
+    )
     k=0
     
     # Initial variance computation \sigma(0)^2
-    hS= np.eye(N)-hrbeta[p,]*W.toarray()
-    V=hS.dot(Y)-(X.dot(hrbeta[0:p])).reshape(N,1)
-    hsig=(V.T.dot(V)/N)[0,0]
+    WY_initial = W_dense.dot(Y)
+
+    V = (
+        Y
+        - hrbeta[p,] * WY_initial
+        - X.dot(hrbeta[0:p]).reshape(N, 1)
+    )
+
+    hsig = (
+        V.T.dot(V) / N
+    )[0, 0]
     
     # Input: Feasibility parameters (truncation boundaries) c_\beta and c_\rho
     cb=np.sqrt(p)
@@ -84,7 +134,7 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
     
     # Apply truncation: \Pi_R(y)
     Y=np.clip(Y, -cy, cy)
-    
+    WY = W_dense.dot(Y)
     cx=3*np.sqrt(p)
     cl2=0.5*np.log(N)/hsig
     
@@ -105,7 +155,7 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
     var_b=2*sen_b**2*eta**2*np.log(2*T/delta)*T**2/(N**2*epsi**2)
     var_r=2*sen_r**2*eta**2*np.log(2*T/delta)*T**2/(N**2*epsi**2)
     
-    f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W)
+    f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W_dense,WY,)
     
 
     while k<=T:
@@ -125,6 +175,6 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
             
         k+=1
         
-        f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W)
+        f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W_dense,WY,)
     
     return hrbeta,hsig,T,var_b,var_r,cl2
