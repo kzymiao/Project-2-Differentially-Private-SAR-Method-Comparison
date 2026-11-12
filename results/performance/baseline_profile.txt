@@ -1,0 +1,40 @@
+Wed Nov 11 20:42:01 2026    results/performance/baseline.prof
+
+         1116103 function calls (1088905 primitive calls) in 3.033 seconds
+
+   Ordered by: cumulative time
+   List reduced from 4236 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      144    0.004    0.000    4.304    0.030 __init__.py:1(<module>)
+   1448/1    0.025    0.000    3.034    3.034 {built-in method builtins.exec}
+        1    0.000    0.000    3.024    3.024 profile_baseline.py:1(<module>)
+   1407/4    0.003    0.000    1.716    0.429 <frozen importlib._bootstrap>:1165(_find_and_load)
+   1380/4    0.003    0.000    1.716    0.429 <frozen importlib._bootstrap>:1120(_find_and_load_unlocked)
+   1335/5    0.002    0.000    1.715    0.343 <frozen importlib._bootstrap>:666(_load_unlocked)
+   1141/5    0.001    0.000    1.715    0.343 <frozen importlib._bootstrap_external>:934(exec_module)
+   3204/9    0.001    0.000    1.714    0.190 <frozen importlib._bootstrap>:233(_call_with_frames_removed)
+        1    0.000    0.000    1.707    1.707 simulation.py:1(<module>)
+        1    0.000    0.000    1.308    1.308 profile_baseline.py:38(main)
+        1    1.308    1.308    1.308    1.308 {method 'enable' of '_lsprof.Profiler' objects}
+ 1527/466    0.001    0.000    1.153    0.002 <frozen importlib._bootstrap>:1207(_handle_fromlist)
+  650/135    0.001    0.000    1.106    0.008 {built-in method builtins.__import__}
+        1    0.000    0.000    0.875    0.875 dgps.py:1(<module>)
+        1    0.000    0.000    0.874    0.874 generation.py:1(<module>)
+     32/4    0.000    0.000    0.506    0.127 __init__.py:108(import_module)
+     32/4    0.000    0.000    0.506    0.127 <frozen importlib._bootstrap>:1192(_gcd_import)
+14133/9356    0.002    0.000    0.491    0.000 {built-in method builtins.hasattr}
+     29/1    0.000    0.000    0.490    0.490 __init__.py:132(__getattr__)
+     1141    0.004    0.000    0.469    0.000 <frozen importlib._bootstrap_external>:1007(get_code)
+1335/1328    0.001    0.000    0.456    0.000 <frozen importlib._bootstrap>:566(module_from_spec)
+  187/185    0.000    0.000    0.440    0.002 <frozen importlib._bootstrap_external>:1231(create_module)
+  187/185    0.436    0.002    0.440    0.002 {built-in method _imp.create_dynamic}
+        1    0.000    0.000    0.435    0.435 _stats_py.py:1(<module>)
+     1141    0.001    0.000    0.397    0.000 <frozen importlib._bootstrap_external>:1127(get_data)
+        8    0.000    0.000    0.337    0.042 api.py:1(<module>)
+     1366    0.005    0.000    0.235    0.000 <frozen importlib._bootstrap>:1054(_find_spec)
+     1361    0.001    0.000    0.224    0.000 <frozen importlib._bootstrap_external>:1496(find_spec)
+     1361    0.007    0.000    0.223    0.000 <frozen importlib._bootstrap_external>:1464(_get_spec)
+     1852    0.008    0.000    0.213    0.000 <frozen importlib._bootstrap_external>:1604(find_spec)
+
+
