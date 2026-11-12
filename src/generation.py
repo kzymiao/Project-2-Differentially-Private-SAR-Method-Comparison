@@ -329,29 +329,55 @@ def generate(N,p,beta,rho,type_w):
     Y=S1.dot(X.dot(beta)+E)
     return X,Y,W
 
-def generate_compare(N,p,beta,rho,type_w):
+def generate_compare(N, p, beta, rho, type_w):
     """
-    Generate synthetic data for the SAR model, specifically designed to align with the empirical setup and assumptions of Wang & Song (2024) for fair comparison.
-    
-    To satisfy their strict bounded covariate assumption required for the Functional Mechanism, the covariates X are drawn from a bounded uniform distribution U(-1, 1). 
-    Additionally, the error variance is reduced to 0.5 to match their experimental design of the response.
-    """
-    if type_w == 'PowerLaw':
-        W=generate_PowerLaw1(N)
-    elif type_w == 'Dyad':
-        W=generate_Dyad(N)
-    elif type_w == 'SBM':
-        W=generate_Block(N)
-    
-    sigma2=0.5
-    
-    S = np.eye(N)-rho*W
-    S1=np.linalg.inv(S)
+    Generate synthetic data for the SAR model, specifically designed to
+    align with the empirical setup and assumptions of Wang & Song (2024)
+    for fair comparison.
 
-    X = np.random.uniform(-1, 1, N*p).reshape(N, p)
-    
-    
-    E=np.random.normal(0,sigma2**0.5,N).reshape(N,1)
-    
-    Y=S1.dot(X.dot(beta)+E)
-    return X,Y,W
+    To satisfy their bounded covariate assumption, X is generated from
+    Uniform(-1, 1). The structural error variance is 0.5.
+
+    The SAR response satisfies
+
+        (I - rho W) Y = X beta + E.
+
+    Rather than explicitly computing (I - rho W)^(-1), we solve this
+    linear system directly for improved computational efficiency and
+    numerical stability.
+    """
+
+    if type_w == 'PowerLaw':
+        W = generate_PowerLaw1(N)
+    elif type_w == 'Dyad':
+        W = generate_Dyad(N)
+    elif type_w == 'SBM':
+        W = generate_Block(N)
+
+    sigma2 = 0.5
+
+    # Convert W to a dense array because this optimization uses
+    # np.linalg.solve rather than a sparse solver.
+    W_dense = W.toarray() if sps.issparse(W) else np.asarray(W)
+
+    # Spatial filtering matrix
+    S = np.eye(N) - rho * W_dense
+
+    X = np.random.uniform(
+        -1,
+        1,
+        N * p
+    ).reshape(N, p)
+
+    E = np.random.normal(
+        0,
+        sigma2 ** 0.5,
+        N
+    ).reshape(N, 1)
+
+    rhs = X.dot(beta) + E
+
+    # Solve S Y = rhs directly instead of computing inv(S) @ rhs.
+    Y = np.linalg.solve(S, rhs)
+
+    return X, Y, W
