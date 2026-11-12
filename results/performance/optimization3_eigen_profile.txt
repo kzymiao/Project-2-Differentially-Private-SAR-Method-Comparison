@@ -1,0 +1,38 @@
+         18853 function calls (18756 primitive calls) in 0.322 seconds
+
+   Ordered by: cumulative time
+   List reduced from 369 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.322    0.322 profile_optimized.py:28(workload)
+        1    0.000    0.000    0.322    0.322 simulation.py:52(run_simulation)
+        1    0.000    0.000    0.277    0.277 methods.py:14(fit)
+        1    0.000    0.000    0.276    0.276 function_qmle_dp.py:94(qmle_dp_estimate)
+        1    0.270    0.270    0.271    0.271 linalg.py:994(eigvals)
+        1    0.000    0.000    0.042    0.042 dgps.py:9(generate_sar_data)
+        1    0.004    0.004    0.041    0.041 generation.py:332(generate_compare)
+        1    0.002    0.002    0.020    0.020 generation.py:20(generate_PowerLaw1)
+        2    0.016    0.008    0.016    0.008 linalg.py:329(solve)
+      800    0.011    0.000    0.011    0.000 {method 'permutation' of 'numpy.random.mtrand.RandomState' objects}
+      877    0.002    0.000    0.004    0.000 shape_base.py:219(vstack)
+        1    0.000    0.000    0.003    0.003 frame.py:641(__init__)
+        3    0.000    0.000    0.003    0.001 _base.py:691(__matmul__)
+        3    0.000    0.000    0.003    0.001 _base.py:568(_matmul_dispatch)
+        2    0.000    0.000    0.002    0.001 _base.py:458(dot)
+        1    0.000    0.000    0.002    0.002 _base.py:670(_matmul_sparse)
+       37    0.001    0.000    0.002    0.000 function_qmle_dp.py:20(f_lambda_ture_sig)
+        8    0.002    0.000    0.002    0.000 {built-in method numpy.zeros}
+       36    0.000    0.000    0.002    0.000 linalg.py:2383(norm)
+      158    0.002    0.000    0.002    0.000 {method 'dot' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.001    0.001 construction.py:97(arrays_to_mgr)
+       36    0.000    0.000    0.001    0.000 linalg.py:2351(_multi_svd_norm)
+        2    0.000    0.000    0.001    0.001 _coo.py:318(tocsr)
+      878    0.001    0.000    0.001    0.000 shape_base.py:81(atleast_2d)
+        1    0.000    0.000    0.001    0.001 managers.py:2119(create_block_manager_from_column_arrays)
+        1    0.000    0.000    0.001    0.001 _compressed.py:509(_matmul_sparse)
+        2    0.000    0.000    0.001    0.001 _compressed.py:1103(toarray)
+        2    0.000    0.000    0.001    0.001 _base.py:1316(_process_toarray_args)
+      4/3    0.000    0.000    0.001    0.000 _compressed.py:27(__init__)
+        2    0.000    0.000    0.001    0.001 _compressed.py:1165(sum_duplicates)
+
+

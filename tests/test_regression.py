@@ -12,6 +12,7 @@ from src.function_qmle_dp import (
 from src.generation import generate_compare
 
 
+
 def test_linear_solve_matches_explicit_inverse():
     rng = np.random.default_rng(123)
 
@@ -220,4 +221,165 @@ def test_simulation_reuses_data_across_epsilon(monkeypatch):
         2  # epsilon values
         * 3  # replicates
         * 3  # parameters
+    )
+
+def test_eigenvalue_trace_matches_inverse_trace():
+    rng = np.random.default_rng(123)
+
+    N = 30
+    rho = 0.2
+
+    W = rng.uniform(
+        size=(N, N)
+    )
+
+    W /= W.sum(
+        axis=1,
+        keepdims=True,
+    )
+
+    S = (
+        np.eye(N)
+        - rho * W
+    )
+
+    # Current Optimization-2 calculation.
+    S_inv = np.linalg.inv(S)
+
+    baseline = np.sum(
+        W * S_inv.T
+    )
+
+    # Proposed eigenvalue calculation.
+    eigenvalues = np.linalg.eigvals(W)
+
+    optimized = np.sum(
+        eigenvalues
+        / (
+            1.0
+            - rho * eigenvalues
+        )
+    )
+
+    np.testing.assert_allclose(
+        optimized.real,
+        baseline,
+        rtol=1e-9,
+        atol=1e-10,
+    )
+
+    assert abs(optimized.imag) < 1e-9
+
+
+def test_eigenvalue_trace_across_rho_values():
+    rng = np.random.default_rng(456)
+
+    N = 30
+
+    W = rng.uniform(
+        size=(N, N)
+    )
+
+    W /= W.sum(
+        axis=1,
+        keepdims=True,
+    )
+
+    eigenvalues = np.linalg.eigvals(W)
+
+    for rho in [
+        -0.4,
+        -0.2,
+        0.0,
+        0.2,
+        0.4,
+    ]:
+        S = (
+            np.eye(N)
+            - rho * W
+        )
+
+        S_inv = np.linalg.inv(S)
+
+        baseline = np.sum(
+            W * S_inv.T
+        )
+
+        optimized = np.sum(
+            eigenvalues
+            / (
+                1.0
+                - rho * eigenvalues
+            )
+        )
+
+        np.testing.assert_allclose(
+            optimized.real,
+            baseline,
+            rtol=1e-8,
+            atol=1e-9,
+        )
+
+
+
+import random
+import numpy as np
+
+from benchmarks.optimization2.function_qmle_dp import (
+    qmle_dp_estimate as qmle_before_eigen,
+)
+from src.function_qmle_dp import (
+    qmle_dp_estimate as qmle_after_eigen,
+)
+from src.generation import generate_compare
+
+
+def test_eigenvalue_qmle_matches_previous_qmle():
+    N = 80
+    p = 2
+    beta = np.array([[0.3], [0.3]])
+    rho = 0.2
+
+    np.random.seed(123)
+    random.seed(123)
+
+    X, Y, W = generate_compare(
+        N,
+        p,
+        beta,
+        rho,
+        "PowerLaw",
+    )
+
+    epsilon = 1.0
+    delta = 10 / (N ** 1.1)
+
+    # Same DP noise stream.
+    np.random.seed(999)
+    random.seed(999)
+
+    before, *_ = qmle_before_eigen(
+        X.copy(),
+        Y.copy(),
+        W.copy(),
+        epsilon,
+        delta,
+    )
+
+    np.random.seed(999)
+    random.seed(999)
+
+    after, *_ = qmle_after_eigen(
+        X.copy(),
+        Y.copy(),
+        W.copy(),
+        epsilon,
+        delta,
+    )
+
+    np.testing.assert_allclose(
+        after,
+        before,
+        rtol=1e-6,
+        atol=1e-8,
     )

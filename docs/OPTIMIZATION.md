@@ -108,9 +108,9 @@ versus
 np.linalg.solve(S, rhs)
 ```
 
-for sample sizes \(N=400,600,800,1000,1200\). Each configuration was repeated five times. Because short runtime measurements can be sensitive to operating-system scheduling and BLAS behavior, the median runtime is used as the primary summary.
+for sample sizes $N=400,600,800,1000,1200$. Each configuration was repeated five times. Because short runtime measurements can be sensitive to operating-system scheduling and BLAS behavior, the median runtime is used as the primary summary.
 
-| Sample size \(N\) | Explicit inverse median (s) | Direct solve median (s) | Median speedup |
+| Sample size $N$ | Explicit inverse median (s) | Direct solve median (s) | Median speedup |
 |---:|---:|---:|---:|
 | 400 | 0.002892 | 0.001204 | 2.38× |
 | 600 | 0.008078 | 0.003080 | 2.58× |
@@ -120,15 +120,15 @@ for sample sizes \(N=400,600,800,1000,1200\). Each configuration was repeated fi
 
 Across all tested sample sizes, the direct solve is consistently faster than explicitly constructing the inverse. The median speedup ranges from approximately 2.4× to 3.0×.
 
-The improvement becomes especially relevant as \(N\) increases because both methods operate on dense \(N\times N\) matrices. Although both approaches retain approximately \(O(N^3)\) asymptotic complexity, `np.linalg.solve` avoids explicitly constructing the full inverse matrix and therefore reduces the constant factor substantially.
+The improvement becomes especially relevant as $N$ increases because both methods operate on dense $N\times N$ matrices. Although both approaches retain approximately $O(N^3)$ asymptotic complexity, `np.linalg.solve` avoids explicitly constructing the full inverse matrix and therefore reduces the constant factor substantially.
 
-This benchmark isolates only the linear-system computation. The end-to-end DGP speedup is smaller because the full data-generating process also includes network generation and simulation of \(X\) and \(E\).
+This benchmark isolates only the linear-system computation. The end-to-end DGP speedup is smaller because the full data-generating process also includes network generation and simulation of $X$ and $E$.
 
 ### Trade-offs
 
-The main trade-off is minimal. The optimized implementation still requires a dense \(N\times N\) matrix and retains \(O(N^3)\) computational complexity.
+The main trade-off is minimal. The optimized implementation still requires a dense $N\times N$ matrix and retains $O(N^3)$ computational complexity.
 
-A sparse linear-system solver could potentially provide a larger performance improvement because the spatial weight matrix \(W\) is sparse, but sparse solving was intentionally not introduced here. This keeps the optimization close to the Unit 2 implementation and isolates the benefit of replacing the explicit inverse with a direct dense solve.
+A sparse linear-system solver could potentially provide a larger performance improvement because the spatial weight matrix $W$ is sparse, but sparse solving was intentionally not introduced here. This keeps the optimization close to the Unit 2 implementation and isolates the benefit of replacing the explicit inverse with a direct dense solve.
 
 Overall, this optimization provides a consistent 2.4×–3.0× speedup for the relevant linear-algebra kernel while also following standard numerical linear-algebra practice of solving the system directly rather than explicitly forming the matrix inverse.
 
@@ -516,25 +516,345 @@ The current profiling results also show that explicit matrix inversion is now th
 
 ---
 
-## Optimization 3: Reuse Generated Data Across Privacy Budgets
+## Optimization 3: Eliminate Repeated Matrix Inversion Using Eigenvalues
 
-### Problem:
-same (N, rep) dataset regenerated separately for eps=1 and eps=2
+### Problem identified
 
-Before:
-10 scenarios × 50 reps = 500 DGP calls
+After Optimization 2, repeated matrix inversion became the dominant remaining bottleneck in DP-QMLE.
 
-After:
-5 DGP groups × 50 reps = 250 DGP calls
+For the representative $N=800$, $\epsilon=1$ workload before this optimization, DP-QMLE required approximately 1.028 seconds, and 37 calls to `np.linalg.inv` consumed approximately 0.886 seconds.
 
-Reduction:
-50%
+The inverse was required only for evaluating
 
-### Correctness:
-same stable_seed already intentionally omitted epsilon; therefore statistical design is unchanged
+$$
+\operatorname{tr}\left[
+W(I-\rho W)^{-1}
+\right].
+$$
 
-### Trade-off:
-loop structure becomes slightly more complex;
-output row ordering changes;
-memory remains essentially unchanged because each dataset
-is reused immediately rather than cached globally
+Because the spatial weight matrix $W$ remains fixed throughout a DP-QMLE fit, repeatedly constructing and inverting
+
+$$
+I-\rho W
+$$
+
+at every gradient iteration is unnecessary.
+
+---
+
+### Solution implemented
+
+Let
+
+$$
+\lambda_1,\ldots,\lambda_N
+$$
+
+denote the eigenvalues of $W$.
+
+For
+
+$$
+S(\rho)=I-\rho W,
+$$
+
+the trace term can be written as
+
+$$
+\operatorname{tr}\left[
+W(I-\rho W)^{-1}
+\right]
+=
+\sum_{i=1}^{N}
+\frac{\lambda_i}
+{1-\rho\lambda_i}.
+$$
+
+Therefore, instead of explicitly computing $(I-\rho W)^{-1}$ at every iteration, the eigenvalues of $W$ are computed once at the beginning of the DP-QMLE fit:
+
+```python id="vg5v6g"
+W_eigenvalues = np.linalg.eigvals(
+    W_dense
+)
+```
+
+Each subsequent score evaluation computes the trace using only elementwise operations:
+
+```python id="xt41bq"
+trace_complex = np.sum(
+    W_eigenvalues
+    / (
+        1.0
+        - rho * W_eigenvalues
+    )
+)
+
+trace_term = float(
+    trace_complex.real
+)
+```
+
+This removes the repeated dense matrix inversions from the gradient iterations.
+
+---
+
+### Before and after
+
+#### Before Optimization 3
+
+```python id="11kk8v"
+hS = np.eye(N) - rho * W_dense
+
+hS_inv = np.linalg.inv(hS)
+
+trace_term = np.sum(
+    W_dense * hS_inv.T
+)
+```
+
+For $N=800$, the score function was evaluated 37 times, which resulted in 37 dense matrix inversions.
+
+#### After Optimization 3
+
+```python id="kvrjds"
+W_eigenvalues = np.linalg.eigvals(
+    W_dense
+)
+```
+
+is evaluated once per DP-QMLE fit.
+
+During each gradient iteration:
+
+```python id="5wf54a"
+trace_term = np.sum(
+    W_eigenvalues
+    / (
+        1.0
+        - rho * W_eigenvalues
+    )
+).real
+```
+
+is used instead.
+
+Thus, many repeated dense inversions are replaced by one eigendecomposition followed by inexpensive vector operations.
+
+---
+
+### Computational complexity
+
+Before this optimization, each score evaluation required an $N\times N$ dense matrix inverse with approximately
+
+$$
+O(N^3)
+$$
+
+computational cost.
+
+The number of score evaluations grows approximately as
+
+$$
+T=0.8(\log N)^2.
+$$
+
+Therefore, the inverse-related component of one DP-QMLE fit had approximate complexity
+
+$$
+O(N^3\log^2N).
+$$
+
+After the optimization, the eigenvalues of $W$ are computed once at approximately
+
+$$
+O(N^3)
+$$
+
+cost.
+
+Each subsequent trace calculation requires only operations on the $N$ eigenvalues, giving approximately
+
+$$
+O(N)
+$$
+
+work per iteration.
+
+The trace-related computation therefore changes from approximately
+
+$$
+O(N^3\log^2N)
+$$
+
+to
+
+$$
+O(N^3 + N\log^2N).
+$$
+
+This is the first optimization in the project that changes the asymptotic structure of the dominant repeated DP-QMLE computation rather than only reducing its constant factor.
+
+---
+
+### Correctness validation
+
+The eigenvalue-based trace was directly compared with the inverse-based trace calculation.
+
+The previous implementation computes
+
+```python id="9urjlo"
+S = np.eye(N) - rho * W
+S_inv = np.linalg.inv(S)
+
+baseline = np.sum(
+    W * S_inv.T
+)
+```
+
+while the optimized implementation computes
+
+```python id="tx89oa"
+eigenvalues = np.linalg.eigvals(W)
+
+optimized = np.sum(
+    eigenvalues
+    / (
+        1.0
+        - rho * eigenvalues
+    )
+)
+```
+
+The two calculations agree within floating-point tolerance.
+
+The regression test was repeated across multiple values of $\rho$ within the feasible parameter region, including negative, zero, and positive values. This verifies that the identity is preserved across the range of spatial-autocorrelation parameters encountered during DP-QMLE optimization.
+
+An estimator-level regression test additionally compares the pre-eigenvalue DP-QMLE with the optimized implementation under the same generated dataset and the same DP random-number stream.
+
+---
+
+### Numerical considerations
+
+The Power-Law spatial weight matrix is not necessarily symmetric, so `np.linalg.eigvals` can return complex-valued eigenvalues.
+
+Since $W$ is real, non-real eigenvalues occur in conjugate pairs. Consequently, the theoretical value
+
+$$
+\sum_i
+\frac{\lambda_i}
+{1-\rho\lambda_i}
+$$
+
+is real.
+
+The implementation therefore checks the imaginary component of the calculated trace and uses its real part only when the remaining imaginary component is negligible numerical roundoff.
+
+The DP-QMLE algorithm also constrains
+
+$$
+|\rho|\le 0.5,
+$$
+
+which helps keep the denominators
+
+$$
+1-\rho\lambda_i
+$$
+
+away from zero for the row-normalized spatial weight matrices considered in this study.
+
+---
+
+### Performance benchmark
+
+The complete DP-QMLE estimator was benchmarked before and after the eigenvalue optimization for
+
+$$
+N\in\{400,600,800,1000,1200\}.
+$$
+
+For each sample size, both implementations used the same generated dataset and the same DP random-number stream. Each configuration was repeated five times, and median runtime is reported to reduce sensitivity to system scheduling and timing noise.
+
+| Sample size $N$ | Pre-eigenvalue DP-QMLE median (s) | Eigenvalue DP-QMLE median (s) | Median speedup |
+|---:|---:|---:|---:|
+| 400  | 0.2636 | 0.0443 | 5.98× |
+| 600  | 0.9061 | 0.1074 | 8.44× |
+| 800  | 2.2333 | 0.2542 | 8.79× |
+| 1000 | 4.4494 | 0.4070 | 10.93× |
+| 1200 | 7.8362 | 0.5894 | 13.29× |
+
+The eigenvalue formulation substantially improves DP-QMLE runtime at every tested sample size.
+
+The reduction in median runtime is approximately:
+
+| $N$ | Runtime reduction |
+|---:|---:|
+| 400 | 83.2% |
+| 600 | 88.1% |
+| 800 | 88.6% |
+| 1000 | 90.9% |
+| 1200 | 92.5% |
+
+The speedup also increases with sample size, from approximately 6× at $N=400$ to more than 13× at $N=1200$.
+
+This pattern is consistent with the theoretical motivation for the optimization. In the pre-eigenvalue implementation, an expensive $O(N^3)$ inverse was repeated at every gradient iteration. In the optimized implementation, only one $O(N^3)$ eigendecomposition is required, after which the repeated trace calculations are inexpensive.
+
+---
+
+### Profiling evidence
+
+Profiling confirms that the computational structure of DP-QMLE changed as intended.
+
+Before Optimization 3, the representative profile contained:
+
+```text id="rmbxqc"
+37 calls to np.linalg.inv
+cumulative time: approximately 0.886 seconds
+```
+
+After Optimization 3, these repeated matrix inversions disappeared.
+
+The optimized profile instead contains a single call to:
+
+```text id="k3n3fz"
+np.linalg.eigvals
+```
+
+while the 37 calls to `f_lambda_ture_sig` together require only a small amount of time outside of the eigendecomposition.
+
+For example, in the profiling run:
+
+```text id="7na2jd"
+1 call   np.linalg.eigvals
+37 calls f_lambda_ture_sig
+```
+
+were observed, confirming that the repeated inverse computation has been moved out of the iterative score evaluation.
+
+The absolute runtime reported by `cProfile` is not used for the formal speedup calculation because profiling and benchmarking may use different BLAS threading and instrumentation conditions. The controlled five-repetition benchmark above is used for quantitative runtime comparisons.
+
+---
+
+### Performance interpretation
+
+Optimization 3 provides a much larger speedup than the previous local algebraic optimizations.
+
+At $N=800$, for example, median DP-QMLE runtime decreases from approximately $2.23\text{ seconds}$ to $0.25\text{ seconds},$ corresponding to approximately an $8.8\times$ speedup.
+
+At $N=1200$, the median runtime decreases from approximately $7.84\text{ seconds}$ to $0.59\text{ seconds},$ corresponding to more than a $13\times$ speedup.
+
+The increasing speedup with $N$ is consistent with the fact that the eliminated computation consisted of repeated dense $N\times N$ matrix inversions.
+
+---
+
+### Trade-offs
+
+The major benefit is the elimination of the dominant repeated matrix inversions from DP-QMLE.
+
+The main trade-off is additional numerical and conceptual complexity. The eigenvalue-based formula is less direct than explicitly forming $W(I-\rho W)^{-1}$, and non-symmetric spatial weight matrices can produce complex eigenvalues.
+
+For this reason, additional regression tests and numerical safeguards are required.
+
+The eigendecomposition itself remains an $O(N^3)$ operation, so the optimization does not eliminate cubic work completely. Instead, it replaces approximately $O(\log^2 N)$ repeated cubic operations with one cubic operation per DP-QMLE fit.
+
+The benchmark results indicate that this trade-off is highly favorable for the sample sizes considered in the simulation study.

@@ -22,76 +22,74 @@ def f_lambda_ture_sig(
     hrho,
     Y,
     X,
-    W_dense,
     WY,
-): 
+    W_eigenvalues,
+):
     """
-    Calculate the first-order derivatives (score/gradient) and estimate the variance sigma^2 
-    for the standard SAR QMLE method.
-    
-    Parameters:
-    :hbeta: The estimate of beta in the current iterative step.
-    :hrho: The estimate of rho in the current iterative step.
-    :Y: The observed response vector.
-    :X: The covariate matrix.
-    :W_dense: dense form of the spatial weight matrix W; W_dense and WY are precomputed outside this function because they do not change across gradient iterations.
-    :WY: W @ Y
+    Calculate the QMLE score and current variance estimate.
 
-    Returns:
-    :f: The combined gradient vector for beta and rho.
-    :hsig: The estimated error variance (sigma^2).
+    The trace term is evaluated from the eigenvalues of W,
+    avoiding repeated inversion of I - rho W.
     """
-
     N = len(Y)
 
-    # S(rho) = I - rho W.
-    # The inverse is still required for the trace term.
-    hS = np.eye(N) - hrho * W_dense
-    hS1 = np.linalg.inv(hS)
+    rho = float(
+        np.asarray(hrho).squeeze()
+    )
 
-    # Instead of computing
-    #
-    #     (I - rho W) @ Y
-    #
-    # at every iteration, use
-    #
-    #     Y - rho * (W @ Y),
-    #
-    # where WY is precomputed once.
     V = (
         Y
-        - hrho * WY
+        - rho * WY
         - X.dot(hbeta).reshape(N, 1)
     )
 
-    # Current variance estimate.
-    hsig = (V.T.dot(V) / N)[0, 0]
+    hsig = (
+        V.T.dot(V) / N
+    )[0, 0]
 
-    # trace(W @ hS1) can be computed without forming the full
-    # matrix product:
-    #
-    # trace(W @ hS1)
-    # = sum_ij W_ij * hS1_ji.
-    trace_term = np.sum(
-        W_dense * hS1.T
+    trace_complex = np.sum(
+        W_eigenvalues
+        / (
+            1.0
+            - rho * W_eigenvalues
+        )
     )
 
-    # Score with respect to rho.
+    # W is real, so complex eigenvalues occur in conjugate pairs.
+    # The theoretical trace is real; any small imaginary component
+    # is numerical roundoff.
+    if abs(trace_complex.imag) > (
+        1e-8
+        * max(
+            1.0,
+            abs(trace_complex.real),
+        )
+    ):
+        warnings.warn(
+            "Non-negligible imaginary component "
+            "in eigenvalue-based trace calculation."
+        )
+
+    trace_term = float(
+        trace_complex.real
+    )
+
     f_r = (
         -trace_term
-        + (1.0 / hsig) * V.T.dot(WY)
+        + (1.0 / hsig)
+        * V.T.dot(WY)
     )
 
-    # Score with respect to beta.
     f_b = (
         (1.0 / hsig)
         * X.T.dot(V)
     )
 
-    f = np.vstack((f_b, f_r))
+    f = np.vstack(
+        (f_b, f_r)
+    )
 
     return f, hsig
-
 
 def qmle_dp_estimate(X,Y,W,epsi,delta):
     """
@@ -110,6 +108,11 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
         if sps.issparse(W)
         else np.asarray(W)
     )
+
+    W_eigenvalues = np.linalg.eigvals(
+    W_dense
+    )
+
     k=0
     
     # Initial variance computation \sigma(0)^2
@@ -155,7 +158,13 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
     var_b=2*sen_b**2*eta**2*np.log(2*T/delta)*T**2/(N**2*epsi**2)
     var_r=2*sen_r**2*eta**2*np.log(2*T/delta)*T**2/(N**2*epsi**2)
     
-    f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W_dense,WY,)
+    f, hsig = f_lambda_ture_sig(
+    hrbeta[0:p,],
+    hrbeta[p,],
+    Y,
+    X,
+    WY,
+    W_eigenvalues,)
     
 
     while k<=T:
@@ -174,7 +183,15 @@ def qmle_dp_estimate(X,Y,W,epsi,delta):
             hrbeta[p,]=cr
             
         k+=1
+
+        f, hsig = f_lambda_ture_sig(
+            hrbeta[0:p,],
+            hrbeta[p,],
+            Y,
+            X,
+            WY,
+            W_eigenvalues,
+        )
         
-        f,hsig=f_lambda_ture_sig(hrbeta[0:p,],hrbeta[p,],Y,X,W_dense,WY,)
     
     return hrbeta,hsig,T,var_b,var_r,cl2
