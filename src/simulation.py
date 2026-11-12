@@ -24,57 +24,174 @@ def stable_seed(master_seed, N, rep, label):
     payload = json.dumps([master_seed, N, rep, label], separators=(",", ":")).encode()
     return int.from_bytes(hashlib.sha256(payload).digest()[:4], "little")
 
+def dgp_key(settings):
+    """Return the settings that uniquely determine the generated dataset."""
+    return (
+        settings["N"],
+        settings["p"],
+        tuple(settings["beta"]),
+        settings["rho"],
+        settings["network"],
+    )
 
-def run_simulation(scenarios, n_reps=50, seed=1234, methods=None):
-    """Run all scenarios and return replicate-level parameter results."""
-    methods = PRIMARY_METHODS if methods is None else methods
-    rows = []
-    total = len(scenarios) * n_reps
-    completed = 0
+
+def group_scenarios_by_dgp(scenarios):
+    """Group scenarios that share exactly the same data-generating settings."""
+    groups = {}
 
     for settings in scenarios:
-        truth = np.asarray([*settings["beta"], settings["rho"]], dtype=float)
+        key = dgp_key(settings)
+
+        if key not in groups:
+            groups[key] = []
+
+        groups[key].append(settings)
+
+    return list(groups.values())
+
+def run_simulation(
+    scenarios,
+    n_reps=50,
+    seed=1234,
+    methods=None,
+):
+    """Run all scenarios and return replicate-level parameter results.
+
+    Scenarios with identical DGP settings but different privacy budgets
+    reuse the same generated dataset within each Monte Carlo replicate.
+    """
+    methods = (
+        PRIMARY_METHODS
+        if methods is None
+        else methods
+    )
+
+    rows = []
+
+    scenario_groups = group_scenarios_by_dgp(
+        scenarios
+    )
+
+    # One generated dataset per DGP group and replicate.
+    total = len(scenario_groups) * n_reps
+    completed = 0
+
+    for scenario_group in scenario_groups:
+
+        # All settings in this group have identical DGP parameters.
+        base_settings = scenario_group[0]
+
+        truth = np.asarray(
+            [
+                *base_settings["beta"],
+                base_settings["rho"],
+            ],
+            dtype=float,
+        )
 
         for rep in range(n_reps):
-            data_seed = stable_seed(seed, settings["N"], rep, "data")
-            data = generate_sar_data(settings, data_seed)
 
-            for method in methods:
-                method_seed = stable_seed(seed, settings["N"], rep, method.name)
-                np.random.seed(method_seed)
-                random.seed(method_seed)
+            # Generate the dataset ONCE for this DGP / replicate.
+            data_seed = stable_seed(
+                seed,
+                base_settings["N"],
+                rep,
+                "data",
+            )
 
-                start = time.perf_counter()
-                status, message = "ok", ""
+            data = generate_sar_data(
+                base_settings,
+                data_seed,
+            )
 
-                try:
-                    estimate = method.fit(data, settings)
-                    if estimate.shape != truth.shape or not np.all(np.isfinite(estimate)):
-                        raise ValueError("non-finite estimate or unexpected parameter shape")
-                except Exception as exc:
-                    estimate = np.full_like(truth, np.nan, dtype=float)
-                    status = "failed"
-                    message = f"{type(exc).__name__}: {exc}"
+            # Reuse the same dataset for all privacy budgets.
+            for settings in scenario_group:
 
-                elapsed = time.perf_counter() - start
+                for method in methods:
 
-                metadata = {
-                    "N": settings["N"],
-                    "p": settings["p"],
-                    "rho_true": settings["rho"],
-                    "network": settings["network"],
-                    "epsilon": settings["epsilon"],
-                    "delta": settings["delta"],
-                    "rep": rep,
-                    "method": method.name,
-                    "status": status,
-                    "message": message,
-                    "elapsed_seconds": elapsed,
-                }
-                rows.extend(parameter_rows(estimate, truth, metadata))
+                    method_seed = stable_seed(
+                        seed,
+                        settings["N"],
+                        rep,
+                        method.name,
+                    )
+
+                    # Re-seeding here intentionally gives matched
+                    # method-specific random streams across epsilon values.
+                    np.random.seed(method_seed)
+                    random.seed(method_seed)
+
+                    start = time.perf_counter()
+
+                    status = "ok"
+                    message = ""
+
+                    try:
+                        estimate = method.fit(
+                            data,
+                            settings,
+                        )
+
+                        if (
+                            estimate.shape != truth.shape
+                            or not np.all(
+                                np.isfinite(estimate)
+                            )
+                        ):
+                            raise ValueError(
+                                "non-finite estimate or "
+                                "unexpected parameter shape"
+                            )
+
+                    except Exception as exc:
+                        estimate = np.full_like(
+                            truth,
+                            np.nan,
+                            dtype=float,
+                        )
+
+                        status = "failed"
+                        message = (
+                            f"{type(exc).__name__}: "
+                            f"{exc}"
+                        )
+
+                    elapsed = (
+                        time.perf_counter()
+                        - start
+                    )
+
+                    metadata = {
+                        "N": settings["N"],
+                        "p": settings["p"],
+                        "rho_true": settings["rho"],
+                        "network": settings["network"],
+                        "epsilon": settings["epsilon"],
+                        "delta": settings["delta"],
+                        "rep": rep,
+                        "method": method.name,
+                        "status": status,
+                        "message": message,
+                        "elapsed_seconds": elapsed,
+                    }
+
+                    rows.extend(
+                        parameter_rows(
+                            estimate,
+                            truth,
+                            metadata,
+                        )
+                    )
 
             completed += 1
-            print(f"\rCompleted {completed}/{total} datasets", end="", flush=True)
+
+            print(
+                f"\rCompleted "
+                f"{completed}/{total} generated datasets",
+                end="",
+                flush=True,
+            )
 
     print()
+
     return pd.DataFrame(rows)

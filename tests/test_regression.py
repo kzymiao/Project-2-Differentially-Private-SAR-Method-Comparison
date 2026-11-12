@@ -131,3 +131,93 @@ def test_optimized_qmle_matches_baseline():
         rtol=1e-6,
         atol=1e-8,
     )
+
+
+def test_simulation_reuses_data_across_epsilon(monkeypatch):
+    from src import simulation
+
+    calls = []
+
+    def fake_generate_sar_data(settings, seed):
+        calls.append(
+            (
+                settings["N"],
+                seed,
+            )
+        )
+
+        N = settings["N"]
+        p = settings["p"]
+
+        return {
+            "X": np.zeros((N, p)),
+            "Y": np.zeros((N, 1)),
+            "W": np.eye(N),
+            "beta_true": np.asarray(
+                settings["beta"]
+            ),
+            "rho_true": settings["rho"],
+        }
+
+    class DummyMethod:
+        name = "dummy"
+
+        def fit(self, data, settings):
+            return np.asarray(
+                [
+                    *settings["beta"],
+                    settings["rho"],
+                ],
+                dtype=float,
+            )
+
+    monkeypatch.setattr(
+        simulation,
+        "generate_sar_data",
+        fake_generate_sar_data,
+    )
+
+    scenarios = [
+        {
+            "N": 10,
+            "p": 2,
+            "beta": [0.3, 0.3],
+            "rho": 0.2,
+            "network": "PowerLaw",
+            "epsilon": 1.0,
+            "delta": 0.01,
+        },
+        {
+            "N": 10,
+            "p": 2,
+            "beta": [0.3, 0.3],
+            "rho": 0.2,
+            "network": "PowerLaw",
+            "epsilon": 2.0,
+            "delta": 0.01,
+        },
+    ]
+
+    result = simulation.run_simulation(
+        scenarios,
+        n_reps=3,
+        seed=1234,
+        methods=[DummyMethod()],
+    )
+
+    # Two epsilon scenarios × three reps would previously
+    # generate six datasets.
+    #
+    # The optimized implementation should generate only
+    # three datasets: one per replicate.
+    assert len(calls) == 3
+
+    assert sorted(
+        result["epsilon"].unique()
+    ) == [1.0, 2.0]
+
+    assert len(result) == (
+        2  # epsilon values
+        * 3  # replicates
+        * 3  # parameters
+    )

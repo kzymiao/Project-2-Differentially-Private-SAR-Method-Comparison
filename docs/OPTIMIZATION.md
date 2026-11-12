@@ -513,3 +513,28 @@ $$
 can be computed without forming the complete matrix $WS^{-1}$. This produced a substantial runtime reduction while preserving the estimator.
 
 The current profiling results also show that explicit matrix inversion is now the dominant remaining bottleneck. Rather than immediately introducing a more invasive change to the DP-QMLE mathematics, the next optimization stage focuses on simulation-level improvements such as eliminating repeated data generation and parallelizing independent Monte Carlo workloads.
+
+---
+
+## Optimization 3: Reuse Generated Data Across Privacy Budgets
+
+### Problem:
+same (N, rep) dataset regenerated separately for eps=1 and eps=2
+
+Before:
+10 scenarios × 50 reps = 500 DGP calls
+
+After:
+5 DGP groups × 50 reps = 250 DGP calls
+
+Reduction:
+50%
+
+### Correctness:
+same stable_seed already intentionally omitted epsilon; therefore statistical design is unchanged
+
+### Trade-off:
+loop structure becomes slightly more complex;
+output row ordering changes;
+memory remains essentially unchanged because each dataset
+is reused immediately rather than cached globally
