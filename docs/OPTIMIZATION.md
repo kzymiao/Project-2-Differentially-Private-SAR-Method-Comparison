@@ -546,9 +546,7 @@ at every gradient iteration is unnecessary.
 
 Let
 
-$$
-\lambda_1,\ldots,\lambda_N
-$$
+$\lambda_1,\ldots,\lambda_N$
 
 denote the eigenvalues of $W$.
 
@@ -749,19 +747,7 @@ is real.
 
 The implementation therefore checks the imaginary component of the calculated trace and uses its real part only when the remaining imaginary component is negligible numerical roundoff.
 
-The DP-QMLE algorithm also constrains
-
-$$
-|\rho|\le 0.5,
-$$
-
-which helps keep the denominators
-
-$$
-1-\rho\lambda_i
-$$
-
-away from zero for the row-normalized spatial weight matrices considered in this study.
+The DP-QMLE algorithm also constrains $|\rho|\le 0.5,$ which helps keep the denominators $1-\rho\lambda_i$ away from zero for the row-normalized spatial weight matrices considered in this study.
 
 ---
 
@@ -858,3 +844,195 @@ For this reason, additional regression tests and numerical safeguards are requir
 The eigendecomposition itself remains an $O(N^3)$ operation, so the optimization does not eliminate cubic work completely. Instead, it replaces approximately $O(\log^2 N)$ repeated cubic operations with one cubic operation per DP-QMLE fit.
 
 The benchmark results indicate that this trade-off is highly favorable for the sample sizes considered in the simulation study.
+
+## Optimization 4: Parallelize Independent Monte Carlo Replicates
+
+### Problem identified
+
+After the algorithmic optimizations, individual DP-QMLE fits became substantially faster. The remaining simulation study still contains many independent Monte Carlo workloads across sample sizes and replicates.
+
+For a fixed DGP setting and replicate, the generated dataset is independent of other replicates. This makes the simulation naturally suitable for process-level parallelism.
+
+The serial simulation therefore leaves available CPU resources unused when independent replicates are executed one after another.
+
+---
+
+### Solution implemented
+
+The simulation was reorganized so that one parallel task corresponds to one DGP group and one Monte Carlo replicate.
+
+Each worker performs the following operations:
+
+1. generate one dataset for a fixed sample size and replicate;
+2. reuse the same dataset for both privacy budgets;
+3. fit DP-QMLE and the Wang--Song comparator for each privacy budget;
+4. return the replicate-level results.
+
+The parallel implementation uses Python's `ProcessPoolExecutor`.
+
+A task therefore has the structure
+
+```text
+(N, replicate)
+    |
+    +-- generate dataset once
+    |
+    +-- epsilon = 1
+    |      +-- DP-QMLE
+    |      +-- Wang-Song
+    |
+    +-- epsilon = 2
+           +-- DP-QMLE
+           +-- Wang-Song
+```
+
+This task definition preserves the previous optimization that reuses the same generated dataset across privacy budgets.
+
+---
+
+### Why process-level parallelism was used
+
+`ProcessPoolExecutor` was used instead of threads because the simulation performs CPU-intensive numerical linear algebra and also relies on NumPy and Python random-number generators.
+
+Each worker process has an independent memory space and random-number-generator state, making process-level parallelism safer for the deterministic simulation design.
+
+The existing `stable_seed` mechanism makes the random streams depend on the simulation identifiers rather than task execution order. Therefore, changing the scheduling order does not change the statistical results.
+
+---
+
+### Correctness validation
+
+Serial and parallel executions were run using identical scenarios, replicate counts, and master random seeds.
+
+The resulting output tables were sorted by
+
+```text
+N
+epsilon
+rep
+method
+parameter
+```
+
+and compared after excluding `elapsed_seconds`, since runtime measurements are expected to differ between serial and parallel execution.
+
+The statistical outputs agree within numerical tolerance.
+
+This verifies that parallel execution changes only the scheduling of the simulation and not the generated estimates or Monte Carlo design.
+
+---
+
+### Avoiding BLAS oversubscription
+
+NumPy linear algebra routines may themselves use multiple CPU threads.
+
+Running multiple Python processes while allowing every process to use multiple BLAS threads can create oversubscription, where the total number of active computational threads greatly exceeds the number of available CPU cores.
+
+To isolate process-level parallelism, the benchmark was therefore run with
+
+```bash
+OMP_NUM_THREADS=1
+OPENBLAS_NUM_THREADS=1
+MKL_NUM_THREADS=1
+VECLIB_MAXIMUM_THREADS=1
+```
+
+for every worker configuration.
+
+---
+
+### Performance benchmark
+
+Parallel scaling was benchmarked using five Monte Carlo replicates for the full set of sample sizes and privacy budgets.
+
+The same simulation workload was run using 1, 2, and 4 worker processes.
+
+| Workers | Wall-clock time (s) | Speedup vs. 1 worker | Parallel efficiency |
+|---:|---:|---:|---:|
+| 1 | 17.32 | 1.00× | 100% |
+| 2 | 13.54 | 1.28× | 64% |
+| 4 | 14.79 | 1.17× | 29% |
+
+Speedup is defined as
+
+$$
+S_p=\frac{T_1}{T_p},
+$$
+
+and parallel efficiency as
+
+$$
+E_p=\frac{S_p}{p}.
+$$
+
+For two workers,
+
+$$
+S_2
+=
+\frac{17.32}{13.54}
+\approx1.28,
+$$
+
+corresponding to approximately 64% parallel efficiency.
+
+For four workers,
+
+$$
+S_4
+=
+\frac{17.32}{14.79}
+\approx1.17,
+$$
+
+corresponding to approximately 29% parallel efficiency.
+
+---
+
+### Interpretation
+
+The two-worker configuration provided the best runtime among the tested configurations, reducing wall-clock time from 17.32 seconds to 13.54 seconds.
+
+Increasing the worker count from two to four did not provide an additional improvement. Instead, runtime increased from 13.54 seconds to 14.79 seconds.
+
+This indicates diminishing returns from process-level parallelism for the current workload.
+
+Several factors can contribute to this behavior:
+
+- process creation and task-dispatch overhead;
+- inter-process serialization costs;
+- competition for memory bandwidth and CPU cache;
+- the relatively small number of tasks in the five-replicate benchmark;
+- expensive linear-algebra operations such as eigendecomposition competing for shared hardware resources.
+
+The increase in total CPU time also supports this interpretation. The measured user CPU time increased from approximately 16.41 seconds with one worker to 22.26 seconds with two workers and 32.15 seconds with four workers, while the wall-clock improvement did not scale proportionally.
+
+Thus, adding more workers increases total computational work and contention even when it does not reduce elapsed time.
+
+---
+
+### Practical configuration
+
+Based on the benchmark, two workers are the preferred parallel configuration for the current machine and simulation workload.
+
+The Makefile therefore supports configurable worker counts, for example:
+
+```bash
+make parallel WORKERS=2
+```
+
+Using a configurable worker count is preferable to hard-coding the maximum number of available CPU cores because the best configuration depends on both the machine and the numerical workload.
+
+---
+
+### Trade-offs
+
+Parallelization reduces wall-clock time without changing the statistical procedure, but it introduces additional implementation and runtime complexity.
+
+The parallel runner requires process management, deterministic task-level random seeds, and safeguards against BLAS oversubscription.
+
+Parallel speedup is also not linear in the number of workers. In the present benchmark, two workers improved runtime, while four workers were slower than two workers.
+
+Therefore, parallelism should be treated as a tunable computational parameter rather than assuming that more workers always provide better performance.
+
+For the current workload and hardware, two worker processes provide the best balance between parallel speedup and computational overhead.

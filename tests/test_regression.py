@@ -1,6 +1,6 @@
 import numpy as np
 import random
-
+import pandas as pd
 from benchmarks.baseline.function_qmle_dp import (
     qmle_dp_estimate as baseline_qmle_dp_estimate,
 )
@@ -383,3 +383,65 @@ def test_eigenvalue_qmle_matches_previous_qmle():
         rtol=1e-6,
         atol=1e-8,
     )
+
+def test_parallel_matches_serial():
+    from scenarios import make_scenarios
+    from src.simulation import (
+        run_simulation,
+        run_simulation_parallel,
+    )
+
+    # Only use N=400 to keep the test lightweight.
+    scenarios = [
+        s
+        for s in make_scenarios()
+        if s["N"] == 400
+    ]
+
+    serial = run_simulation(
+        scenarios,
+        n_reps=1,
+        seed=1234,
+    )
+
+    parallel = run_simulation_parallel(
+        scenarios,
+        n_reps=1,
+        seed=1234,
+        workers=2,
+    )
+
+    sort_cols = [
+        "N",
+        "epsilon",
+        "rep",
+        "method",
+        "parameter",
+    ]
+
+    serial = (
+        serial
+        .sort_values(sort_cols)
+        .reset_index(drop=True)
+    )
+
+    parallel = (
+        parallel
+        .sort_values(sort_cols)
+        .reset_index(drop=True)
+    )
+
+    compare_cols = [
+        c
+        for c in serial.columns
+        if c != "elapsed_seconds"
+    ]
+
+    pd.testing.assert_frame_equal(
+        serial[compare_cols],
+        parallel[compare_cols],
+        check_exact=False,
+        rtol=1e-7,
+        atol=1e-9,
+    )
+

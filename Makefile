@@ -1,9 +1,22 @@
-.PHONY: all simulate analyze figures test clean
+WORKERS ?= 4
+.PHONY: all simulate analyze figures test clean reproduce parallel
 PYTHON ?= python3
 REPS ?= 50
 SEED ?= 1234
 
 all: simulate analyze figures
+
+parallel:
+	OMP_NUM_THREADS=1 \
+	OPENBLAS_NUM_THREADS=1 \
+	MKL_NUM_THREADS=1 \
+	VECLIB_MAXIMUM_THREADS=1 \
+	$(PYTHON) simulate.py \
+		--reps $(REPS) \
+		--seed $(SEED) \
+		--parallel \
+		--workers $(WORKERS) \
+		--out results/raw/runs_parallel.csv
 
 simulate:
 	$(PYTHON) simulate.py --reps $(REPS) --seed $(SEED)
