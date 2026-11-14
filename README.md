@@ -62,22 +62,6 @@ make PYTHON=.venv/bin/python all REPS=50 SEED=1234
 ```
 
 
-
-## Testing and validation
-
-Run the test suite with:
-
-```bash
-make PYTHON=python test
-```
-
-The current test suite contains four lightweight tests:
-
-1. **Simulation design validation** (`test_final_design_crosses_sample_size_and_epsilon`): checks that the design contains the five intended sample sizes, both privacy budgets, and all ten scenarios.
-2. **DGP verification** (`test_dgp_shapes_bounds_and_weight_rows`): checks the shapes of the generated data, verifies that covariates lie within the specified bounds, and checks row normalization of the network weight matrix for non-isolated nodes.
-3. **Reproducibility check** (`test_dgp_reproducibility`): verifies that the same random seed produces identical
-
-
 ## Quick pilot run
 
 ```bash
@@ -120,12 +104,79 @@ Bias is defined as `abs(mean(theta_hat - theta))`, so all reported bias values a
 
 Occasional large finite estimates are retained rather than filtered, because numerical instability is part of finite-sample utility. The RMSE plots therefore use a log scale so both small and large errors remain visible.
 
-## Runtime
-
-On a MacBook Pro, the full simulation with 50 Monte Carlo replicates
-per condition takes approximately 14 minutes (13:48.25). Runtime will vary by
-machine.
-
 ## Key Findings
 
 Our simulation shows that the proposed DP-QMLE consistently achieves lower absolute bias and RMSE compared to the Wang–Song baseline, while exhibiting greater numerical stability across varying sample sizes and privacy budgets.
+
+## Unit 3: High-Performance Simulation Study
+
+The Unit 3 project optimizes the original Unit 2 simulation study for computational efficiency and numerical stability while preserving the statistical design.
+
+The main optimizations are:
+
+1. replacing an explicit inverse in SAR data generation with a direct linear solve;
+2. eliminating redundant matrix conversions and matrix products in DP-QMLE;
+3. reusing generated datasets across matched privacy-budget scenarios;
+4. replacing repeated inverse-based DP-QMLE trace calculations with a one-time eigendecomposition;
+5. parallelizing independent Monte Carlo workloads.
+
+Detailed performance analysis is available in:
+
+- `docs/BASELINE.md`
+- `docs/OPTIMIZATION.md`
+
+### Performance commands
+
+```bash
+make profile
+make benchmark
+make complexity
+make parallel WORKERS=2
+make stability-check
+```
+
+The two-worker configuration is the default recommended parallel setting on the machine used for this project.
+
+## Performance results
+
+For the complete 50-replicate serial simulation pipeline:
+
+| Implementation | Wall-clock time |
+|---|---:|
+| Unit 2 baseline | 788.29 s |
+| Final optimized | 342.37 s |
+
+The final serial implementation therefore achieves approximately a **2.30× end-to-end speedup**, corresponding to a **56.6% reduction in wall-clock runtime**.
+
+The isolated DP-QMLE benchmark shows larger gains, with median speedup increasing from approximately **8.9× at \(N=400\)** to **21.5× at \(N=1200\)**.
+
+Empirical log-log runtime scaling decreased from an exponent of approximately **3.17** for the Unit 2 implementation to approximately **2.41** for the optimized implementation.
+
+## Testing and validation
+
+Run all automated tests with:
+
+```bash
+make PYTHON=python test
+```
+
+The test suite includes:
+
+- simulation-design validation;
+- DGP shape, boundedness, and normalization checks;
+- random-seed reproducibility;
+- metric validation;
+- regression tests comparing direct linear solving with the original inverse-based calculation;
+- trace-identity validation;
+- eigenvalue-based trace validation across multiple values of \(\rho\);
+- estimator-level regression tests comparing optimized and preserved baseline implementations;
+- verification that datasets are reused across privacy budgets;
+- serial-versus-parallel result equivalence.
+
+## Numerical stability
+
+The final 50-replicate study completed without failed fits in any `(N, epsilon, method)` condition.
+
+The Wang--Song Gaussian functional-mechanism baseline nevertheless produced several large finite estimation errors. These values are retained rather than filtered because numerical instability is part of the finite-sample comparison.
+
+DP-QMLE remained substantially more stable in the final error-distribution diagnostics.

@@ -1,7 +1,7 @@
 numpy==1.26.4
-pandas
+pandas==2.0.3
 scipy==1.13.1
 matplotlib==3.9.2
-networkx
+networkx==3.3
 powerlaw==1.5
-pytest
+pytest==7.4.4

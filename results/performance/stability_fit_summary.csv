@@ -1,0 +1,21 @@
+N,epsilon,method,n_fits,n_failed
+400,1.0,DP-QMLE (ours),50,0
+400,1.0,Wang-Song Gaussian FM,50,0
+400,2.0,DP-QMLE (ours),50,0
+400,2.0,Wang-Song Gaussian FM,50,0
+600,1.0,DP-QMLE (ours),50,0
+600,1.0,Wang-Song Gaussian FM,50,0
+600,2.0,DP-QMLE (ours),50,0
+600,2.0,Wang-Song Gaussian FM,50,0
+800,1.0,DP-QMLE (ours),50,0
+800,1.0,Wang-Song Gaussian FM,50,0
+800,2.0,DP-QMLE (ours),50,0
+800,2.0,Wang-Song Gaussian FM,50,0
+1000,1.0,DP-QMLE (ours),50,0
+1000,1.0,Wang-Song Gaussian FM,50,0
+1000,2.0,DP-QMLE (ours),50,0
+1000,2.0,Wang-Song Gaussian FM,50,0
+1200,1.0,DP-QMLE (ours),50,0
+1200,1.0,Wang-Song Gaussian FM,50,0
+1200,2.0,DP-QMLE (ours),50,0
+1200,2.0,Wang-Song Gaussian FM,50,0

@@ -1,8 +1,22 @@
-WORKERS ?= 4
-.PHONY: all simulate analyze figures test clean reproduce parallel
+WORKERS ?= 2
 PYTHON ?= python3
 REPS ?= 50
 SEED ?= 1234
+
+.PHONY: \
+	all \
+	simulate \
+	analyze \
+	figures \
+	test \
+	clean \
+	reproduce \
+	profile \
+	complexity \
+	benchmark \
+	parallel \
+	stability-check
+
 
 all: simulate analyze figures
 
@@ -17,6 +31,23 @@ parallel:
 		--parallel \
 		--workers $(WORKERS) \
 		--out results/raw/runs_parallel.csv
+
+profile:
+	$(PYTHON) scripts/profile_optimized.py
+
+benchmark:
+	OMP_NUM_THREADS=1 \
+	OPENBLAS_NUM_THREADS=1 \
+	MKL_NUM_THREADS=1 \
+	VECLIB_MAXIMUM_THREADS=1 \
+	$(PYTHON) scripts/benchmark_final.py
+
+complexity:
+	$(PYTHON) scripts/complexity_final.py
+
+stability-check:
+	$(PYTHON) scripts/stability_check.py
+	
 
 simulate:
 	$(PYTHON) simulate.py --reps $(REPS) --seed $(SEED)

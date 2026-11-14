@@ -1,38 +1,38 @@
-         19447 function calls (19350 primitive calls) in 1.063 seconds
+         18855 function calls (18758 primitive calls) in 0.347 seconds
 
    Ordered by: cumulative time
-   List reduced from 361 to 30 due to restriction <30>
+   List reduced from 370 to 30 due to restriction <30>
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.000    0.000    1.063    1.063 profile_optimized.py:28(workload)
-        1    0.000    0.000    1.063    1.063 simulation.py:28(run_simulation)
-        1    0.000    0.000    1.028    1.028 methods.py:14(fit)
-        1    0.011    0.011    1.028    1.028 function_qmle_dp.py:96(qmle_dp_estimate)
-       37    0.106    0.003    1.013    0.027 function_qmle_dp.py:20(f_lambda_ture_sig)
-       37    0.886    0.024    0.886    0.024 linalg.py:492(inv)
-        1    0.000    0.000    0.025    0.025 dgps.py:9(generate_sar_data)
-        1    0.003    0.003    0.024    0.024 generation.py:332(generate_compare)
-        1    0.001    0.001    0.013    0.013 generation.py:20(generate_PowerLaw1)
-       38    0.001    0.000    0.011    0.000 twodim_base.py:158(eye)
-       45    0.011    0.000    0.011    0.000 {built-in method numpy.zeros}
-       75    0.000    0.000    0.009    0.000 fromnumeric.py:71(_wrapreduction)
-       37    0.000    0.000    0.009    0.000 fromnumeric.py:2177(sum)
-       88    0.009    0.000    0.009    0.000 {method 'reduce' of 'numpy.ufunc' objects}
-        2    0.008    0.004    0.008    0.004 linalg.py:329(solve)
-      800    0.006    0.000    0.006    0.000 {method 'permutation' of 'numpy.random.mtrand.RandomState' objects}
-        1    0.000    0.000    0.006    0.006 frame.py:641(__init__)
-        3    0.000    0.000    0.005    0.002 _base.py:691(__matmul__)
-        3    0.000    0.000    0.005    0.002 _base.py:568(_matmul_dispatch)
-        2    0.000    0.000    0.004    0.002 _base.py:458(dot)
-       36    0.000    0.000    0.003    0.000 linalg.py:2383(norm)
-        1    0.000    0.000    0.003    0.003 methods.py:26(fit)
-        1    0.000    0.000    0.003    0.003 function_wangsong.py:65(lse_dp_gaussian_estimate)
-        1    0.000    0.000    0.003    0.003 construction.py:484(nested_data_to_arrays)
-       36    0.000    0.000    0.003    0.000 linalg.py:2351(_multi_svd_norm)
-        1    0.000    0.000    0.003    0.003 construction.py:775(to_arrays)
-        1    0.000    0.000    0.003    0.003 _compressed.py:482(_matmul_vector)
-        1    0.003    0.003    0.003    0.003 {built-in method scipy.sparse._sparsetools.csr_matvec}
-      877    0.002    0.000    0.003    0.000 shape_base.py:219(vstack)
-        1    0.000    0.000    0.002    0.002 construction.py:886(_list_of_dict_to_arrays)
+        1    0.000    0.000    0.347    0.347 profile_optimized.py:28(workload)
+        1    0.000    0.000    0.347    0.347 simulation.py:164(run_simulation)
+        1    0.000    0.000    0.341    0.341 simulation.py:54(run_one_dataset)
+        1    0.000    0.000    0.289    0.289 methods.py:14(fit)
+        1    0.001    0.001    0.289    0.289 function_qmle_dp.py:94(qmle_dp_estimate)
+        1    0.281    0.281    0.281    0.281 linalg.py:994(eigvals)
+        1    0.001    0.001    0.051    0.051 dgps.py:9(generate_sar_data)
+        1    0.003    0.003    0.051    0.051 generation.py:332(generate_compare)
+        2    0.034    0.017    0.034    0.017 linalg.py:329(solve)
+        1    0.001    0.001    0.012    0.012 generation.py:20(generate_PowerLaw1)
+      800    0.007    0.000    0.007    0.000 {method 'permutation' of 'numpy.random.mtrand.RandomState' objects}
+        1    0.000    0.000    0.005    0.005 frame.py:641(__init__)
+        1    0.000    0.000    0.003    0.003 construction.py:97(arrays_to_mgr)
+       37    0.001    0.000    0.002    0.000 function_qmle_dp.py:20(f_lambda_ture_sig)
+      877    0.001    0.000    0.002    0.000 shape_base.py:219(vstack)
+        3    0.000    0.000    0.002    0.001 _base.py:691(__matmul__)
+        3    0.000    0.000    0.002    0.001 _base.py:568(_matmul_dispatch)
+       36    0.000    0.000    0.002    0.000 linalg.py:2383(norm)
+        2    0.000    0.000    0.002    0.001 _base.py:458(dot)
+       36    0.000    0.000    0.002    0.000 linalg.py:2351(_multi_svd_norm)
+        8    0.002    0.000    0.002    0.000 {built-in method numpy.zeros}
+       20    0.002    0.000    0.002    0.000 {pandas._libs.lib.is_list_like}
+        1    0.000    0.000    0.002    0.002 managers.py:2119(create_block_manager_from_column_arrays)
+        1    0.000    0.000    0.002    0.002 _base.py:670(_matmul_sparse)
+        2    0.000    0.000    0.002    0.001 _compressed.py:1103(toarray)
+        2    0.000    0.000    0.002    0.001 _base.py:1316(_process_toarray_args)
+        1    0.000    0.000    0.001    0.001 construction.py:510(treat_as_nested)
+      158    0.001    0.000    0.001    0.000 {method 'dot' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.001    0.001 managers.py:1823(_consolidate_inplace)
+        2    0.000    0.000    0.001    0.001 _coo.py:318(tocsr)
 
 

@@ -256,54 +256,30 @@ After that point, the same `WY` is reused for every iteration.
 The most important redundant dense matrix operation was
 
 ```python
-np.trace(
-    W_dense.dot(hS1)
-)
+np.trace(W_dense.dot(hS1))
 ```
 
-where
-
-$$
-hS1=(I-\rho W)^{-1}.
-$$
+where $hS1=(I-\rho W)^{-1}.$
 
 The full $N\times N$ matrix product is not needed because only its trace is used.
 
 Using the identity
 
 $$
-\operatorname{tr}(AB)
-=
+\operatorname{tr}(AB)=
 \sum_{i,j} A_{ij}B_{ji},
 $$
 
 the trace can instead be computed as
 
 ```python
-trace_term = np.sum(
-    W_dense * hS1.T
-)
+trace_term = np.sum(W_dense * hS1.T)
 ```
 
 This avoids explicitly constructing the full matrix product.
 
-The baseline trace calculation involves an $N\times N$ dense matrix multiplication with approximately
-
-$$
-O(N^3)
-$$
-
-cost.
-
-The optimized trace calculation uses an elementwise multiplication and summation with approximately
-
-$$
-O(N^2)
-$$
-
-cost.
-
-The matrix inverse itself is still required, so the overall DP-QMLE asymptotic complexity remains dominated by the inverse.
+The baseline trace calculation involves an $N\times N$ dense matrix multiplication with approximately $O(N^3)$ cost.
+The optimized trace calculation uses an elementwise multiplication and summation with approximately $O(N^2)$ cost. The matrix inverse itself is still required, so the overall DP-QMLE asymptotic complexity remains dominated by the inverse.
 
 ---
 
@@ -415,21 +391,10 @@ Before the optimization, each gradient evaluation contained two major cubic-cost
 1. the dense inverse of $I-\rho W$;
 2. the dense product $W(I-\rho W)^{-1}$.
 
-After the optimization, the second $O(N^3)$ operation is replaced by an $O(N^2)$ trace calculation.
+After the optimization, the second $O(N^3)$ operation is replaced by an $O(N^2)$ trace calculation. The inverse remains $O(N^3)$.
 
-The inverse remains $O(N^3)$.
-
-The number of DP-QMLE gradient iterations is approximately
-
-$$
-T=0.8(\log N)^2.
-$$
-
-Therefore, the dominant asymptotic complexity of the estimator remains approximately
-
-$$
-O(N^3\log^2 N).
-$$
+The number of DP-QMLE gradient iterations is approximately $T=0.8(log N)^2.$
+Therefore, the dominant asymptotic complexity of the estimator remains approximately $O(N^3\log^2 N).$
 
 The optimization does not change the overall big-O order, but it removes one expensive $O(N^3)$ matrix operation from every gradient evaluation and therefore substantially reduces the leading constant.
 
@@ -525,49 +490,26 @@ After Optimization 2, repeated matrix inversion became the dominant remaining bo
 For the representative $N=800$, $\epsilon=1$ workload before this optimization, DP-QMLE required approximately 1.028 seconds, and 37 calls to `np.linalg.inv` consumed approximately 0.886 seconds.
 
 The inverse was required only for evaluating
-
-$$
+$
 \operatorname{tr}\left[
 W(I-\rho W)^{-1}
 \right].
-$$
-
+$
 Because the spatial weight matrix $W$ remains fixed throughout a DP-QMLE fit, repeatedly constructing and inverting
-
-$$
+$
 I-\rho W
-$$
-
+$
 at every gradient iteration is unnecessary.
 
 ---
 
 ### Solution implemented
 
-Let
-
-$\lambda_1,\ldots,\lambda_N$
-
-denote the eigenvalues of $W$.
-
-For
-
-$$
-S(\rho)=I-\rho W,
-$$
-
-the trace term can be written as
-
-$$
-\operatorname{tr}\left[
-W(I-\rho W)^{-1}
-\right]
-=
-\sum_{i=1}^{N}
+Let $\lambda_1,\ldots,\lambda_N$ denote the eigenvalues of $W$. For $S=I-\rho W,$ the trace term can be written as $\text{tr}[
+W(I-\rho W)^{-1}]
+=\sum_{i=1}^{N}
 \frac{\lambda_i}
-{1-\rho\lambda_i}.
-$$
-
+{1-\rho\lambda_i}.$
 Therefore, instead of explicitly computing $(I-\rho W)^{-1}$ at every iteration, the eigenvalues of $W$ are computed once at the beginning of the DP-QMLE fit:
 
 ```python id="vg5v6g"
@@ -643,49 +585,31 @@ Thus, many repeated dense inversions are replaced by one eigendecomposition foll
 ### Computational complexity
 
 Before this optimization, each score evaluation required an $N\times N$ dense matrix inverse with approximately
-
-$$
+$
 O(N^3)
-$$
-
+$
 computational cost.
-
-The number of score evaluations grows approximately as
-
-$$
-T=0.8(\log N)^2.
-$$
-
+The number of score evaluations grows approximately as $T=0.8(log N)^2.$
 Therefore, the inverse-related component of one DP-QMLE fit had approximate complexity
-
-$$
+$
 O(N^3\log^2N).
-$$
+$
 
 After the optimization, the eigenvalues of $W$ are computed once at approximately
-
-$$
+$
 O(N^3)
-$$
-
+$
 cost.
-
 Each subsequent trace calculation requires only operations on the $N$ eigenvalues, giving approximately
-
-$$
+$
 O(N)
-$$
-
+$
 work per iteration.
-
 The trace-related computation therefore changes from approximately
-
 $$
 O(N^3\log^2N)
 $$
-
 to
-
 $$
 O(N^3 + N\log^2N).
 $$
@@ -841,7 +765,7 @@ The main trade-off is additional numerical and conceptual complexity. The eigenv
 
 For this reason, additional regression tests and numerical safeguards are required.
 
-The eigendecomposition itself remains an $O(N^3)$ operation, so the optimization does not eliminate cubic work completely. Instead, it replaces approximately $O(\log^2 N)$ repeated cubic operations with one cubic operation per DP-QMLE fit.
+The eigendecomposition itself remains an $O(N^3)$ operation, so the optimization does not eliminate cubic work completely. Instead, it replaces approximately $O$log^2 N)$ repeated cubic operations with one cubic operation per DP-QMLE fit.
 
 The benchmark results indicate that this trade-off is highly favorable for the sample sizes considered in the simulation study.
 
@@ -1036,3 +960,70 @@ Parallel speedup is also not linear in the number of workers. In the present ben
 Therefore, parallelism should be treated as a tunable computational parameter rather than assuming that more workers always provide better performance.
 
 For the current workload and hardware, two worker processes provide the best balance between parallel speedup and computational overhead.
+
+
+## Final Performance Summary
+
+### End-to-end runtime
+
+The original Unit 2 simulation study required 788.29 seconds of wall-clock time for the complete serial pipeline with 50 Monte Carlo replicates per condition. After all algorithmic optimizations, the same complete serial pipeline required 342.37 seconds. Therefore, the final optimized implementation achieves an end-to-end speedup of $\frac{788.29}{342.37}\approx2.30\times.$ Equivalently, the total wall-clock runtime decreased by approximately $56.6\%.$ This comparison uses serial execution for both implementations, so the gain reflects the algorithmic and implementation optimizations rather than process-level parallelism.
+
+### DP-QMLE runtime scaling
+
+The isolated DP-QMLE benchmark shows a substantially larger improvement because DP-QMLE was the principal computational bottleneck in the Unit 2 implementation.
+
+| Sample size $N$ | Unit 2 baseline median (s) | Final optimized median (s) | Median speedup |
+|---:|---:|---:|---:|
+| 400  | 0.2316 | 0.0260 | 8.90× |
+| 600  | 0.8755 | 0.0654 | 13.47× |
+| 800  | 2.1485 | 0.1469 | 14.63× |
+| 1000 | 4.2919 | 0.2375 | 18.56× |
+| 1200 | 7.5882 | 0.3521 | 21.52× |
+
+The speedup increases with sample size. This is consistent with the main optimization: repeated dense matrix inversions were removed from the iterative DP-QMLE score calculation, so larger matrices benefit disproportionately.
+
+### Empirical complexity
+
+A log-log regression of median runtime against sample size gives empirical scaling exponents of approximately 3.17 for the Unit 2 baseline and 2.41 for the final optimized implementation.
+
+Thus, over the range of sample sizes evaluated, $T_{\mathrm{baseline}}(N)\approx C_1 N^{3.17},$ whereas $T_{\mathrm{optimized}}(N)\approx C_2 N^{2.41}.$ The exponent 2.41 is an empirical scaling estimate rather than a theoretical complexity bound. Nevertheless, the substantial decrease is consistent with replacing repeated cubic-cost inversions by a single eigendecomposition followed by inexpensive iterative trace evaluations.
+
+### Parallel scaling
+
+Process-level parallelism was also evaluated after limiting each worker to one BLAS thread.
+
+| Workers | Wall-clock time (s) | Speedup | Parallel efficiency |
+|---:|---:|---:|---:|
+| 1 | 17.32 | 1.00× | 100% |
+| 2 | 13.54 | 1.28× | 64% |
+| 4 | 14.79 | 1.17× | 29% |
+
+Two workers provided the best performance on the test machine. Four workers increased CPU usage but did not further reduce wall-clock time, illustrating the effects of process overhead and hardware-resource contention.
+
+### Numerical stability
+
+The final 50-replicate simulation completed successfully for every combination of sample size, privacy budget, and method.
+
+Across all 20 `(N, epsilon, method)` conditions, the number of failed fits was zero.
+
+However, the Wang--Song Gaussian functional-mechanism estimator continued to exhibit occasional large but finite estimation errors. The largest observed absolute error was approximately 120.39 for the spatial parameter \$rho$ at $N=1200$ and \$epsilon=1$. Other large errors were also concentrated in the Wang--Song estimator.
+
+These observations are consistent with the original statistical diagnostic plots: DP-QMLE remains tightly concentrated around the true parameters, whereas the Wang--Song estimator can generate extreme finite estimates.
+
+Importantly, the computational optimizations did not remove or filter these extreme values. They remain part of the simulation output because numerical instability of an estimator is itself relevant finite-sample behavior.
+
+### Overall conclusion
+
+The largest performance gain came from changing the structure of the DP-QMLE trace calculation rather than from low-level syntax changes.
+
+The progression of optimizations was:
+
+1. avoid an unnecessary explicit inverse in the SAR data-generating process;
+2. eliminate redundant matrix conversions and matrix products in DP-QMLE;
+3. reuse identical generated datasets across matched privacy-budget scenarios;
+4. replace repeated inverse-based trace calculations with a one-time eigendecomposition;
+5. parallelize independent Monte Carlo workloads.
+
+The final implementation reduces complete serial simulation runtime by approximately 56.6% while preserving the statistical design and numerical results of the original Unit 2 study.
+
+The results also demonstrate that optimization should be guided by profiling. Early profiling identified repeated dense matrix inversion as the dominant bottleneck, and removing that bottleneck produced the largest performance improvement.
